@@ -8,6 +8,7 @@ namespace {
 
 constexpr float kPi = 3.14159265359f;
 constexpr int kRainDropCount = 900;
+constexpr int kStarCount = 140;
 
 struct Camera {
     float x = 0.0f;
@@ -28,6 +29,7 @@ bool gRainMode = false;
 float gBladeAngle = 0.0f;
 float gCloudOffsetNear = 0.0f;
 float gCloudOffsetFar = 0.0f;
+float gSceneTime = 0.0f;
 
 int gWindowWidth = 1280;
 int gWindowHeight = 720;
@@ -40,6 +42,15 @@ struct RainDrop {
 };
 
 RainDrop gRainDrops[kRainDropCount];
+
+struct Star {
+    float x;
+    float y;
+    float size;
+    float phase;
+};
+
+Star gStars[kStarCount];
 
 float degToRad(float degrees) {
     return degrees * kPi / 180.0f;
@@ -61,6 +72,22 @@ void initRainSystem() {
     for (int i = 0; i < kRainDropCount; ++i) {
         resetRaindrop(gRainDrops[i], false);
     }
+}
+
+void initStars() {
+    for (int i = 0; i < kStarCount; ++i) {
+        gStars[i].x = randomRange(-0.98f, 0.98f);
+        gStars[i].y = randomRange(0.10f, 0.98f);
+        gStars[i].size = randomRange(1.0f, 2.5f);
+        gStars[i].phase = randomRange(0.0f, 2.0f * kPi);
+    }
+}
+
+void setMaterial(float specularStrength, float shininess) {
+    GLfloat specular[4] = {specularStrength, specularStrength, specularStrength, 1.0f};
+    GLfloat shiny[1] = {shininess};
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, specular);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, shiny);
 }
 
 void drawCube(float w, float h, float d) {
@@ -119,28 +146,163 @@ void drawMountainPyramid(float halfWidth, float height, float halfDepth) {
     glEnd();
 }
 
-void drawGround() {
-    const int extent = 30;
-    for (int x = -extent; x < extent; ++x) {
-        for (int z = -extent; z < extent; ++z) {
-            const bool dark = ((x + z) & 1) == 0;
-            if (dark) {
-                glColor3f(0.26f, 0.52f, 0.24f);
-            } else {
-                glColor3f(0.22f, 0.48f, 0.20f);
-            }
+void drawScreenGlow(float cx, float cy, float radius,
+                    float r, float g, float b,
+                    float alphaCenter, int slices = 40) {
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4f(r, g, b, alphaCenter);
+    glVertex2f(cx, cy);
+    glColor4f(r, g, b, 0.0f);
+    for (int i = 0; i <= slices; ++i) {
+        float angle = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(slices);
+        glVertex2f(cx + std::cos(angle) * radius, cy + std::sin(angle) * radius);
+    }
+    glEnd();
+}
 
-            glBegin(GL_QUADS);
-            glNormal3f(0.0f, 1.0f, 0.0f);
-            glVertex3f(static_cast<float>(x), 0.0f, static_cast<float>(z));
-            glVertex3f(static_cast<float>(x + 1), 0.0f, static_cast<float>(z));
-            glVertex3f(static_cast<float>(x + 1), 0.0f, static_cast<float>(z + 1));
-            glVertex3f(static_cast<float>(x), 0.0f, static_cast<float>(z + 1));
+void drawSkyGradient() {
+    GLfloat top[3];
+    GLfloat horizon[3];
+
+    if (gRainMode && gDayMode) {
+        top[0] = 0.36f; top[1] = 0.42f; top[2] = 0.50f;
+        horizon[0] = 0.62f; horizon[1] = 0.68f; horizon[2] = 0.74f;
+    } else if (gRainMode) {
+        top[0] = 0.04f; top[1] = 0.06f; top[2] = 0.11f;
+        horizon[0] = 0.18f; horizon[1] = 0.21f; horizon[2] = 0.30f;
+    } else if (gDayMode) {
+        top[0] = 0.33f; top[1] = 0.58f; top[2] = 0.88f;
+        horizon[0] = 0.80f; horizon[1] = 0.89f; horizon[2] = 0.97f;
+    } else {
+        top[0] = 0.03f; top[1] = 0.06f; top[2] = 0.14f;
+        horizon[0] = 0.16f; horizon[1] = 0.20f; horizon[2] = 0.32f;
+    }
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_FOG);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glBegin(GL_QUADS);
+    glColor3f(horizon[0], horizon[1], horizon[2]);
+    glVertex2f(-1.0f, -1.0f);
+    glVertex2f(1.0f, -1.0f);
+    glColor3f(top[0], top[1], top[2]);
+    glVertex2f(1.0f, 1.0f);
+    glVertex2f(-1.0f, 1.0f);
+    glEnd();
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    if (gDayMode && !gRainMode) {
+        drawScreenGlow(0.70f, 0.72f, 0.20f, 1.0f, 0.92f, 0.70f, 0.55f);
+        drawScreenGlow(0.70f, 0.72f, 0.08f, 1.0f, 0.97f, 0.82f, 0.85f);
+    } else if (!gDayMode && !gRainMode) {
+        drawScreenGlow(0.65f, 0.70f, 0.14f, 0.85f, 0.88f, 1.0f, 0.30f);
+        drawScreenGlow(0.65f, 0.70f, 0.05f, 0.92f, 0.94f, 1.0f, 0.72f);
+
+        for (int i = 0; i < kStarCount; ++i) {
+            const Star& star = gStars[i];
+            float twinkle = 0.45f + 0.55f * std::sin(gSceneTime * 1.6f + star.phase);
+            float alpha = 0.20f + 0.65f * twinkle;
+            glPointSize(star.size);
+            glBegin(GL_POINTS);
+            glColor4f(0.92f, 0.94f, 1.0f, alpha);
+            glVertex2f(star.x, star.y);
             glEnd();
         }
     }
 
-    glColor3f(0.40f, 0.36f, 0.30f);
+    glDisable(GL_BLEND);
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+}
+
+void updateFog() {
+    GLfloat fogColor[4];
+    if (gRainMode && gDayMode) {
+        fogColor[0] = 0.46f; fogColor[1] = 0.54f; fogColor[2] = 0.62f; fogColor[3] = 1.0f;
+    } else if (gRainMode) {
+        fogColor[0] = 0.10f; fogColor[1] = 0.12f; fogColor[2] = 0.18f; fogColor[3] = 1.0f;
+    } else if (gDayMode) {
+        fogColor[0] = 0.77f; fogColor[1] = 0.86f; fogColor[2] = 0.94f; fogColor[3] = 1.0f;
+    } else {
+        fogColor[0] = 0.11f; fogColor[1] = 0.14f; fogColor[2] = 0.23f; fogColor[3] = 1.0f;
+    }
+
+    glEnable(GL_FOG);
+    glFogi(GL_FOG_MODE, GL_LINEAR);
+    glHint(GL_FOG_HINT, GL_NICEST);
+    glFogfv(GL_FOG_COLOR, fogColor);
+    glFogf(GL_FOG_START, gRainMode ? 11.0f : (gDayMode ? 26.0f : 20.0f));
+    glFogf(GL_FOG_END, gRainMode ? 62.0f : (gDayMode ? 120.0f : 88.0f));
+}
+
+void drawGroundShadow(float x, float z, float radiusX, float radiusZ, float alpha) {
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    float adjustedAlpha = gRainMode ? alpha * 0.65f : alpha;
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4f(0.05f, 0.05f, 0.05f, adjustedAlpha);
+    glVertex3f(x, 0.015f, z);
+    glColor4f(0.05f, 0.05f, 0.05f, 0.0f);
+    const int segments = 28;
+    for (int i = 0; i <= segments; ++i) {
+        float angle = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(segments);
+        glVertex3f(x + std::cos(angle) * radiusX, 0.015f, z + std::sin(angle) * radiusZ);
+    }
+    glEnd();
+
+    glDisable(GL_BLEND);
+    glEnable(GL_LIGHTING);
+}
+
+void drawGround() {
+    setMaterial(gRainMode ? 0.20f : 0.06f, gRainMode ? 34.0f : 8.0f);
+
+    const int extent = 30;
+    for (int x = -extent; x < extent; ++x) {
+        for (int z = -extent; z < extent; ++z) {
+            float fx = static_cast<float>(x);
+            float fz = static_cast<float>(z);
+            float noise = 0.5f + 0.5f * (std::sin(fx * 0.37f + fz * 0.13f) *
+                                         std::cos(fz * 0.41f - fx * 0.16f));
+            float shade = 0.80f + noise * 0.25f;
+            if (gRainMode) {
+                shade *= 0.86f;
+            }
+
+            glColor3f(0.23f * shade, 0.50f * shade, 0.22f * shade);
+
+            glBegin(GL_QUADS);
+            glNormal3f(0.0f, 1.0f, 0.0f);
+            glVertex3f(fx, 0.0f, fz);
+            glVertex3f(fx + 1.0f, 0.0f, fz);
+            glVertex3f(fx + 1.0f, 0.0f, fz + 1.0f);
+            glVertex3f(fx, 0.0f, fz + 1.0f);
+            glEnd();
+        }
+    }
+
+    setMaterial(gRainMode ? 0.14f : 0.03f, gRainMode ? 24.0f : 6.0f);
+    glColor3f(gRainMode ? 0.31f : 0.40f, gRainMode ? 0.30f : 0.36f, gRainMode ? 0.29f : 0.30f);
     glBegin(GL_QUADS);
     glNormal3f(0.0f, 1.0f, 0.0f);
     glVertex3f(-2.0f, 0.01f, 12.0f);
@@ -174,6 +336,7 @@ void drawHills() {
     };
 
     for (const Hill& hill : hills) {
+        setMaterial(0.08f, 14.0f);
         glPushMatrix();
         glTranslatef(hill.x, hill.y, hill.z);
         glRotatef(hill.yaw, 0.0f, 1.0f, 0.0f);
@@ -190,6 +353,7 @@ void drawHills() {
             iceB *= 0.92f;
         }
 
+        setMaterial(0.40f, 60.0f);
         glPushMatrix();
         glTranslatef(hill.x, hill.y + hill.height * 0.60f, hill.z);
         glRotatef(hill.yaw, 0.0f, 1.0f, 0.0f);
@@ -204,6 +368,7 @@ void drawTree(float x, float z, float scale) {
     glTranslatef(x, 0.0f, z);
     glScalef(scale, scale, scale);
 
+    setMaterial(0.12f, 14.0f);
     glColor3f(0.45f, 0.28f, 0.16f);
     glPushMatrix();
     glTranslatef(0.0f, 0.7f, 0.0f);
@@ -212,6 +377,7 @@ void drawTree(float x, float z, float scale) {
     drawDiskY(0.14f);
     glPopMatrix();
 
+    setMaterial(0.05f, 8.0f);
     glColor3f(0.10f, 0.45f, 0.18f);
     glPushMatrix();
     glTranslatef(0.0f, 2.25f, 0.0f);
@@ -231,12 +397,14 @@ void drawHouse(float x, float z, float rotY, float scale) {
     glRotatef(rotY, 0.0f, 1.0f, 0.0f);
     glScalef(scale, scale, scale);
 
+    setMaterial(0.08f, 10.0f);
     glColor3f(0.78f, 0.70f, 0.57f);
     glPushMatrix();
     glTranslatef(0.0f, 1.1f, 0.0f);
     drawCube(3.4f, 2.2f, 2.4f);
     glPopMatrix();
 
+    setMaterial(0.12f, 20.0f);
     glColor3f(0.52f, 0.16f, 0.14f);
     glPushMatrix();
     glTranslatef(0.0f, 2.45f, 0.0f);
@@ -244,12 +412,14 @@ void drawHouse(float x, float z, float rotY, float scale) {
     glutSolidCone(2.25f, 1.25f, 4, 1);
     glPopMatrix();
 
+    setMaterial(0.05f, 8.0f);
     glColor3f(0.30f, 0.18f, 0.10f);
     glPushMatrix();
     glTranslatef(0.0f, 0.75f, 1.21f);
     drawCube(0.60f, 1.10f, 0.10f);
     glPopMatrix();
 
+    setMaterial(0.45f, 64.0f);
     glColor3f(0.20f, 0.35f, 0.55f);
     glPushMatrix();
     glTranslatef(-0.95f, 1.35f, 1.21f);
@@ -262,6 +432,7 @@ void drawHouse(float x, float z, float rotY, float scale) {
 }
 
 void drawFenceRing(float radius, int posts) {
+    setMaterial(0.10f, 12.0f);
     glColor3f(0.58f, 0.30f, 0.16f);
 
     for (int i = 0; i < posts; ++i) {
@@ -306,6 +477,7 @@ void drawFenceRing(float radius, int posts) {
 void drawWindmill() {
     glPushMatrix();
 
+    setMaterial(0.20f, 30.0f);
     glColor3f(0.93f, 0.93f, 0.92f);
     glPushMatrix();
     glTranslatef(0.0f, 0.05f, 0.0f);
@@ -315,6 +487,7 @@ void drawWindmill() {
     drawDiskY(0.72f, false, 36);
     glPopMatrix();
 
+    setMaterial(0.10f, 14.0f);
     glColor3f(0.38f, 0.24f, 0.14f);
     glPushMatrix();
     glTranslatef(0.0f, 4.25f, 0.0f);
@@ -322,12 +495,14 @@ void drawWindmill() {
     glutSolidCone(0.95f, 1.4f, 36, 8);
     glPopMatrix();
 
+    setMaterial(0.08f, 10.0f);
     glColor3f(0.64f, 0.19f, 0.15f);
     glPushMatrix();
     glTranslatef(0.0f, 1.1f, 0.74f);
     drawCube(0.62f, 1.35f, 0.12f);
     glPopMatrix();
 
+    setMaterial(0.38f, 60.0f);
     glColor3f(0.23f, 0.33f, 0.54f);
     glPushMatrix();
     glTranslatef(-0.35f, 2.2f, 0.73f);
@@ -340,9 +515,11 @@ void drawWindmill() {
     glTranslatef(0.0f, 3.15f, 0.86f);
     glRotatef(gBladeAngle, 0.0f, 0.0f, 1.0f);
 
+    setMaterial(0.18f, 24.0f);
     glColor3f(0.28f, 0.20f, 0.13f);
     glutSolidSphere(0.14f, 24, 24);
 
+    setMaterial(0.24f, 36.0f);
     glColor3f(0.97f, 0.97f, 0.97f);
     for (int i = 0; i < 4; ++i) {
         glPushMatrix();
@@ -369,12 +546,16 @@ void drawCloud(float x, float y, float z, float scale, float offset) {
     glTranslatef(x + offset, y, z);
     glScalef(scale, scale, scale);
 
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     if (gRainMode) {
-        glColor3f(0.64f, 0.68f, 0.74f);
+        glColor4f(0.64f, 0.68f, 0.74f, 0.88f);
     } else if (gDayMode) {
-        glColor3f(0.98f, 0.98f, 0.99f);
+        glColor4f(0.98f, 0.98f, 0.99f, 0.90f);
     } else {
-        glColor3f(0.72f, 0.74f, 0.82f);
+        glColor4f(0.72f, 0.74f, 0.82f, 0.86f);
     }
 
     glutSolidSphere(0.65f, 20, 20);
@@ -382,6 +563,9 @@ void drawCloud(float x, float y, float z, float scale, float offset) {
     glutSolidSphere(0.55f, 20, 20);
     glTranslatef(-1.2f, -0.05f, 0.05f);
     glutSolidSphere(0.50f, 20, 20);
+
+    glDisable(GL_BLEND);
+    glEnable(GL_LIGHTING);
 
     glPopMatrix();
 }
@@ -513,6 +697,7 @@ void drawOverlay() {
     glLoadIdentity();
 
     glDisable(GL_LIGHTING);
+    glDisable(GL_FOG);
     glDisable(GL_DEPTH_TEST);
 
     glColor3f(1.0f, 1.0f, 1.0f);
@@ -531,6 +716,7 @@ void drawOverlay() {
     }
 
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_FOG);
     glEnable(GL_LIGHTING);
 
     glPopMatrix();
@@ -551,6 +737,7 @@ void display() {
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawSkyGradient();
     glLoadIdentity();
 
     float yawRad = degToRad(gCamera.yaw);
@@ -565,9 +752,20 @@ void display() {
               0.0f, 1.0f, 0.0f);
 
     updateLights();
+    updateFog();
 
     drawGround();
     drawHills();
+
+    drawGroundShadow(0.0f, 0.0f, 3.0f, 2.3f, 0.22f);
+    drawGroundShadow(-8.5f, -6.0f, 2.8f, 1.9f, 0.20f);
+    drawGroundShadow(9.5f, -8.0f, 2.5f, 1.8f, 0.18f);
+    drawGroundShadow(-5.0f, 3.5f, 1.3f, 1.0f, 0.17f);
+    drawGroundShadow(4.5f, 4.0f, 1.4f, 1.1f, 0.17f);
+    drawGroundShadow(-10.0f, -2.5f, 1.5f, 1.2f, 0.18f);
+    drawGroundShadow(8.8f, -1.2f, 1.3f, 1.0f, 0.17f);
+    drawGroundShadow(2.0f, -10.5f, 1.5f, 1.2f, 0.18f);
+
     drawWindmill();
 
     drawHouse(-8.5f, -6.0f, 25.0f, 1.0f);
@@ -653,6 +851,7 @@ void updateMovement(float dt) {
 
 void timer(int) {
     const float dt = 1.0f / 60.0f;
+    gSceneTime += dt;
 
     updateMovement(dt);
 
@@ -744,6 +943,7 @@ void init() {
     gluQuadricNormals(gQuadric, GLU_SMOOTH);
 
     initRainSystem();
+    initStars();
 }
 
 }  // namespace
