@@ -1,7 +1,3 @@
-// ============================================================================
-// SEGMENT 1: CORE DATA + SHARED HELPERS
-// ============================================================================
-
 #include <GL/glut.h>
 #include <cctype>
 #include <cmath>
@@ -13,12 +9,6 @@ namespace {
 constexpr float kPi = 3.14159265359f;
 constexpr int kRainDropCount = 900;
 constexpr int kStarCount = 140;
-constexpr float kSunX = 0.0f;
-constexpr float kSunY = 18.0f;
-constexpr float kSunZ = 18.0f;
-constexpr float kMoonX = 0.0f;
-constexpr float kMoonY = 18.0f;
-constexpr float kMoonZ = -18.0f;
 
 struct Camera {
     float x = 0.0f;
@@ -121,10 +111,6 @@ void drawDiskY(float radius, bool flipNormal = false, int slices = 32) {
     glPopMatrix();
 }
 
-// ============================================================================
-// SEGMENT 2: SKY + TERRAIN FOUNDATION
-// ============================================================================
-
 void drawTriangle3D(float ax, float ay, float az,
                     float bx, float by, float bz,
                     float cx, float cy, float cz) {
@@ -149,14 +135,6 @@ void drawTriangle3D(float ax, float ay, float az,
     glVertex3f(ax, ay, az);
     glVertex3f(bx, by, bz);
     glVertex3f(cx, cy, cz);
-}
-
-void drawQuad3D(float ax, float ay, float az,
-                float bx, float by, float bz,
-                float cx, float cy, float cz,
-                float dx, float dy, float dz) {
-    drawTriangle3D(ax, ay, az, bx, by, bz, cx, cy, cz);
-    drawTriangle3D(ax, ay, az, cx, cy, cz, dx, dy, dz);
 }
 
 void drawMountainPyramid(float halfWidth, float height, float halfDepth) {
@@ -224,7 +202,13 @@ void drawSkyGradient() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    if (!gDayMode && !gRainMode) {
+    if (gDayMode && !gRainMode) {
+        drawScreenGlow(0.70f, 0.72f, 0.20f, 1.0f, 0.92f, 0.70f, 0.55f);
+        drawScreenGlow(0.70f, 0.72f, 0.08f, 1.0f, 0.97f, 0.82f, 0.85f);
+    } else if (!gDayMode && !gRainMode) {
+        drawScreenGlow(0.65f, 0.70f, 0.14f, 0.85f, 0.88f, 1.0f, 0.30f);
+        drawScreenGlow(0.65f, 0.70f, 0.05f, 0.92f, 0.94f, 1.0f, 0.72f);
+
         for (int i = 0; i < kStarCount; ++i) {
             const Star& star = gStars[i];
             float twinkle = 0.45f + 0.55f * std::sin(gSceneTime * 1.6f + star.phase);
@@ -246,74 +230,6 @@ void drawSkyGradient() {
 
     glDepthMask(GL_TRUE);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_LIGHTING);
-}
-
-void drawSun() {
-    if (!gDayMode) {
-        return;
-    }
-
-    glDisable(GL_LIGHTING);
-    glDisable(GL_FOG);
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glPushMatrix();
-    glTranslatef(kSunX, kSunY, kSunZ);
-    if (gRainMode) {
-        glColor4f(0.96f, 0.94f, 0.86f, 0.22f);
-        glutSolidSphere(2.20f, 28, 28);
-        glColor4f(0.98f, 0.96f, 0.90f, 0.52f);
-        glutSolidSphere(1.05f, 24, 24);
-    } else {
-        glColor4f(1.00f, 0.90f, 0.62f, 0.36f);
-        glutSolidSphere(4.20f, 34, 34);
-        glColor4f(1.00f, 0.95f, 0.78f, 0.92f);
-        glutSolidSphere(1.85f, 28, 28);
-    }
-    glPopMatrix();
-
-    glDisable(GL_BLEND);
-    glDepthMask(GL_TRUE);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_FOG);
-    glEnable(GL_LIGHTING);
-}
-
-void drawMoon() {
-    if (gDayMode) {
-        return;
-    }
-
-    glDisable(GL_LIGHTING);
-    glDisable(GL_FOG);
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glPushMatrix();
-    glTranslatef(kMoonX, kMoonY, kMoonZ);
-    if (gRainMode) {
-        glColor4f(0.84f, 0.88f, 0.98f, 0.18f);
-        glutSolidSphere(1.85f, 24, 24);
-        glColor4f(0.90f, 0.93f, 1.00f, 0.44f);
-        glutSolidSphere(0.88f, 22, 22);
-    } else {
-        glColor4f(0.80f, 0.86f, 1.00f, 0.26f);
-        glutSolidSphere(2.05f, 26, 26);
-        glColor4f(0.93f, 0.96f, 1.00f, 0.82f);
-        glutSolidSphere(0.98f, 24, 24);
-    }
-    glPopMatrix();
-
-    glDisable(GL_BLEND);
-    glDepthMask(GL_TRUE);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_FOG);
     glEnable(GL_LIGHTING);
 }
 
@@ -342,18 +258,7 @@ void drawGroundShadow(float x, float z, float radiusX, float radiusZ, float alph
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    float adjustedAlpha = alpha;
-    if (gDayMode) {
-        adjustedAlpha *= 1.40f;
-    } else {
-        adjustedAlpha *= 0.85f;
-    }
-    if (gRainMode) {
-        adjustedAlpha *= 0.65f;
-    }
-    if (adjustedAlpha > 1.0f) {
-        adjustedAlpha = 1.0f;
-    }
+    float adjustedAlpha = gRainMode ? alpha * 0.65f : alpha;
     glBegin(GL_TRIANGLE_FAN);
     glColor4f(0.05f, 0.05f, 0.05f, adjustedAlpha);
     glVertex3f(x, 0.015f, z);
@@ -372,7 +277,7 @@ void drawGroundShadow(float x, float z, float radiusX, float radiusZ, float alph
 void drawGround() {
     setMaterial(gRainMode ? 0.20f : 0.06f, gRainMode ? 34.0f : 8.0f);
 
-    const int extent = 48;
+    const int extent = 30;
     for (int x = -extent; x < extent; ++x) {
         for (int z = -extent; z < extent; ++z) {
             float fx = static_cast<float>(x);
@@ -458,70 +363,28 @@ void drawHills() {
     }
 }
 
-// ============================================================================
-// SEGMENT 3: WORLD STRUCTURES (TREE / HOUSE / WINDMILL)
-// ============================================================================
-
 void drawTree(float x, float z, float scale) {
     glPushMatrix();
     glTranslatef(x, 0.0f, z);
     glScalef(scale, scale, scale);
 
     setMaterial(0.12f, 14.0f);
-    glColor3f(0.42f, 0.27f, 0.15f);
+    glColor3f(0.45f, 0.28f, 0.16f);
     glPushMatrix();
-    drawCylinderY(0.20f, 0.13f, 1.95f, 24);
-    glTranslatef(0.0f, 1.95f, 0.0f);
-    drawDiskY(0.13f);
-    glPopMatrix();
-
-    setMaterial(0.10f, 10.0f);
-    glColor3f(0.38f, 0.24f, 0.14f);
-    glPushMatrix();
-    glTranslatef(0.0f, 1.45f, 0.0f);
-    glRotatef(36.0f, 0.0f, 0.0f, 1.0f);
-    glRotatef(24.0f, 1.0f, 0.0f, 0.0f);
-    drawCylinderY(0.07f, 0.04f, 0.95f, 16);
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslatef(0.0f, 1.35f, 0.0f);
-    glRotatef(-34.0f, 0.0f, 0.0f, 1.0f);
-    glRotatef(-18.0f, 1.0f, 0.0f, 0.0f);
-    drawCylinderY(0.065f, 0.035f, 0.90f, 16);
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslatef(0.0f, 1.68f, -0.02f);
-    glRotatef(70.0f, 1.0f, 0.0f, 0.0f);
-    drawCylinderY(0.055f, 0.03f, 0.75f, 16);
+    drawCylinderY(0.18f, 0.14f, 1.4f, 20);
+    glTranslatef(0.0f, 1.4f, 0.0f);
+    drawDiskY(0.14f);
     glPopMatrix();
 
     setMaterial(0.05f, 8.0f);
+    glColor3f(0.10f, 0.45f, 0.18f);
     glPushMatrix();
-    glTranslatef(0.0f, 1.80f, 0.0f);
-    glColor3f(0.12f, 0.38f, 0.14f);
-    glutSolidSphere(0.28f, 16, 16);
-
-    glTranslatef(0.0f, 0.20f, 0.0f);
-    glColor3f(0.13f, 0.40f, 0.15f);
-    glutSolidSphere(0.78f, 20, 20);
-
-    glTranslatef(-0.52f, -0.18f, 0.30f);
-    glColor3f(0.11f, 0.46f, 0.18f);
-    glutSolidSphere(0.58f, 18, 18);
-
-    glTranslatef(0.98f, 0.02f, -0.56f);
-    glColor3f(0.10f, 0.43f, 0.16f);
-    glutSolidSphere(0.54f, 18, 18);
-
-    glTranslatef(-0.26f, 0.52f, 0.36f);
-    glColor3f(0.15f, 0.49f, 0.20f);
-    glutSolidSphere(0.46f, 16, 16);
-
-    glTranslatef(-0.34f, -0.04f, -0.58f);
-    glColor3f(0.09f, 0.37f, 0.14f);
-    glutSolidSphere(0.42f, 16, 16);
+    glTranslatef(0.0f, 1.55f, 0.0f);
+    glutSolidSphere(0.75f, 20, 20);
+    glTranslatef(-0.35f, -0.25f, 0.2f);
+    glutSolidSphere(0.55f, 16, 16);
+    glTranslatef(0.75f, 0.0f, -0.4f);
+    glutSolidSphere(0.55f, 16, 16);
     glPopMatrix();
 
     glPopMatrix();
@@ -542,28 +405,11 @@ void drawHouse(float x, float z, float rotY, float scale) {
 
     setMaterial(0.12f, 20.0f);
     glColor3f(0.52f, 0.16f, 0.14f);
-    const float roofHalfW = 1.90f;
-    const float roofHalfD = 1.35f;
-    const float ridgeHalfW = 1.05f;
-    const float roofBaseY = 2.22f;
-    const float roofRidgeY = 3.05f;
-
-    glBegin(GL_TRIANGLES);
-    drawQuad3D(-roofHalfW, roofBaseY, roofHalfD,
-                roofHalfW, roofBaseY, roofHalfD,
-                ridgeHalfW, roofRidgeY, 0.0f,
-               -ridgeHalfW, roofRidgeY, 0.0f);
-    drawQuad3D( roofHalfW, roofBaseY, -roofHalfD,
-               -roofHalfW, roofBaseY, -roofHalfD,
-               -ridgeHalfW, roofRidgeY, 0.0f,
-                ridgeHalfW, roofRidgeY, 0.0f);
-    drawTriangle3D(roofHalfW, roofBaseY,  roofHalfD,
-                   roofHalfW, roofBaseY, -roofHalfD,
-                   ridgeHalfW, roofRidgeY, 0.0f);
-    drawTriangle3D(-roofHalfW, roofBaseY, -roofHalfD,
-                   -roofHalfW, roofBaseY,  roofHalfD,
-                   -ridgeHalfW, roofRidgeY, 0.0f);
-    glEnd();
+    glPushMatrix();
+    glTranslatef(0.0f, 2.45f, 0.0f);
+    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
+    glutSolidCone(2.25f, 1.25f, 4, 1);
+    glPopMatrix();
 
     setMaterial(0.05f, 8.0f);
     glColor3f(0.30f, 0.18f, 0.10f);
@@ -640,16 +486,8 @@ void drawWindmill() {
     drawDiskY(0.72f, false, 36);
     glPopMatrix();
 
-    float coneR = gDayMode ? 0.52f : 0.44f;
-    float coneG = gDayMode ? 0.32f : 0.27f;
-    float coneB = gDayMode ? 0.19f : 0.20f;
-    if (gRainMode) {
-        coneR *= 0.92f;
-        coneG *= 0.92f;
-        coneB *= 0.95f;
-    }
-    setMaterial(gDayMode ? 0.26f : 0.22f, gDayMode ? 42.0f : 34.0f);
-    glColor3f(coneR, coneG, coneB);
+    setMaterial(0.10f, 14.0f);
+    glColor3f(0.38f, 0.24f, 0.14f);
     glPushMatrix();
     glTranslatef(0.0f, 4.25f, 0.0f);
     glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
@@ -672,21 +510,8 @@ void drawWindmill() {
     drawCube(0.32f, 0.32f, 0.10f);
     glPopMatrix();
 
-    setMaterial(0.15f, 5.0f);
-    glColor3f(0.35f, 0.25f, 0.15f);
-    const float hubY = 3.15f;
-    const float bodyFrontZ = 0.80f;
-    const float hubZ = 1.35f;
-    const float shaftLength = (hubZ - bodyFrontZ);
-
     glPushMatrix();
-    glTranslatef(0.0f, hubY, bodyFrontZ);
-    glRotatef(90.0f, 1.0f, 0.0f, 0.0f);
-    drawCylinderY(0.10f, 0.10f, shaftLength, 24);
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslatef(0.0f, 3.15f, 1.35f);
+    glTranslatef(0.0f, 3.15f, 0.86f);
     glRotatef(gBladeAngle, 0.0f, 0.0f, 1.0f);
 
     setMaterial(0.18f, 24.0f);
@@ -714,10 +539,6 @@ void drawWindmill() {
 
     glPopMatrix();
 }
-
-// ============================================================================
-// SEGMENT 4: ATMOSPHERE + LIGHTING + HUD
-// ============================================================================
 
 void drawCloud(float x, float y, float z, float scale, float offset) {
     glPushMatrix();
@@ -810,16 +631,16 @@ void updateLights() {
     GLfloat sunPos[4];
 
     if (gDayMode) {
-        GLfloat a[4] = {0.20f, 0.20f, 0.19f, 1.0f};
-        GLfloat d[4] = {1.05f, 1.00f, 0.92f, 1.0f};
-        GLfloat p[4] = {kSunX, kSunY, kSunZ, 0.0f};
+        GLfloat a[4] = {0.34f, 0.34f, 0.34f, 1.0f};
+        GLfloat d[4] = {0.96f, 0.95f, 0.90f, 1.0f};
+        GLfloat p[4] = {16.0f, 24.0f, 10.0f, 1.0f};
         std::memcpy(ambient, a, sizeof(ambient));
         std::memcpy(diffuse, d, sizeof(diffuse));
         std::memcpy(sunPos, p, sizeof(sunPos));
     } else {
         GLfloat a[4] = {0.11f, 0.11f, 0.18f, 1.0f};
         GLfloat d[4] = {0.30f, 0.34f, 0.50f, 1.0f};
-        GLfloat p[4] = {kMoonX, kMoonY, kMoonZ, 0.0f};
+        GLfloat p[4] = {12.0f, 18.0f, -16.0f, 1.0f};
         std::memcpy(ambient, a, sizeof(ambient));
         std::memcpy(diffuse, d, sizeof(diffuse));
         std::memcpy(sunPos, p, sizeof(sunPos));
@@ -837,7 +658,24 @@ void updateLights() {
     glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
     glLightfv(GL_LIGHT0, GL_POSITION, sunPos);
 
-    glDisable(GL_LIGHT1);
+    if (gDayMode) {
+        glDisable(GL_LIGHT1);
+    } else {
+        GLfloat lampDiffuse[4] = {1.00f, 0.82f, 0.56f, 1.0f};
+        GLfloat lampAmbient[4] = {0.14f, 0.11f, 0.08f, 1.0f};
+        GLfloat lampPos[4] = {0.0f, 1.2f, 1.4f, 1.0f};
+
+        if (gRainMode) {
+            lampDiffuse[0] = 0.85f;
+            lampDiffuse[1] = 0.72f;
+            lampDiffuse[2] = 0.50f;
+        }
+
+        glLightfv(GL_LIGHT1, GL_AMBIENT, lampAmbient);
+        glLightfv(GL_LIGHT1, GL_DIFFUSE, lampDiffuse);
+        glLightfv(GL_LIGHT1, GL_POSITION, lampPos);
+        glEnable(GL_LIGHT1);
+    }
 }
 
 void renderBitmapText(float x, float y, const char* text) {
@@ -886,10 +724,6 @@ void drawOverlay() {
     glMatrixMode(GL_MODELVIEW);
 }
 
-// ============================================================================
-// SEGMENT 5: FRAME LOOP + INPUT + APP BOOTSTRAP
-// ============================================================================
-
 void display() {
     if (gRainMode && gDayMode) {
         glClearColor(0.44f, 0.51f, 0.60f, 1.0f);
@@ -916,8 +750,6 @@ void display() {
               gCamera.x + dirX, gCamera.y + dirY, gCamera.z + dirZ,
               0.0f, 1.0f, 0.0f);
 
-    drawSun();
-    drawMoon();
     updateLights();
     updateFog();
 
@@ -940,7 +772,6 @@ void display() {
 
     drawTree(-5.0f, 3.5f, 1.0f);
     drawTree(4.5f, 4.0f, 1.1f);
-    drawTree(6.5f, 4.0f, 1.1f);
     drawTree(-10.0f, -2.5f, 1.2f);
     drawTree(8.8f, -1.2f, 1.0f);
     drawTree(2.0f, -10.5f, 1.25f);
@@ -1120,7 +951,7 @@ int main(int argc, char** argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(gWindowWidth, gWindowHeight);
-    glutCreateWindow("Complete 3D Windmill Project Made By, Mahin, Anik, Mithila, Illin, faria");
+    glutCreateWindow("Complete 3D Windmill Project");
 
     init();
 
