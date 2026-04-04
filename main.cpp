@@ -945,7 +945,7 @@ void init() {
     initStars();
 }
 
-}  // namespace
+}  // namespace 
 
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
